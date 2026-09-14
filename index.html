@@ -93,6 +93,8 @@ button.btn{padding:10px 16px;border-radius:9px;border:1px solid #C9D1E4;backgrou
 button.btn:hover{background:#EDF1F9}
 button.btn.primary{background:#232C4E;border-color:#232C4E;color:#fff}
 button.btn.primary:hover{background:#101632}
+button.btn.danger{background:#FF7A59;border-color:#FF7A59;color:#fff;font-weight:700}
+button.btn.danger:hover{background:#E05A39}
 button.btn:disabled{opacity:.5;cursor:default}
 button.btn:focus-visible{outline:2px solid #4A6FE3;outline-offset:2px}
 .card.dark button.btn{background:var(--ink-3);border-color:var(--line-d);color:var(--white-s)}
@@ -136,9 +138,6 @@ textarea.ans:focus{outline:2px solid #4A6FE3;outline-offset:-1px;border-color:tr
 .status.err{background:#FDECE7;color:#7A2A12}
 .status.info{background:#EDF1F9;color:#3A4468}
 .card.dark .status.info{background:var(--ink-3);color:var(--dim)}
-.codebox{width:100%;min-height:70px;margin:10px 0 0;padding:11px;border:1px solid var(--line-l);
-  border-radius:9px;font-family:var(--mono);font-size:12px;background:var(--paper-2);
-  color:#3A4468;resize:vertical;word-break:break-all}
 
 .tgrid{display:grid;grid-template-columns:44px repeat(6,1fr);gap:6px;margin:14px 0 0}
 .tgrid .hd{font-family:var(--mono);font-size:11px;color:var(--dim);
@@ -365,11 +364,6 @@ input[type=range]{flex:1;accent-color:var(--gold);height:24px}
       <button class="btn" id="savePng">그래프 이미지로 저장</button>
     </div>
     <div class="status info" id="submitStatus">아직 제출하지 않았습니다.</div>
-    <div id="codeArea" hidden>
-      <p class="lede" style="margin:14px 0 0;font-size:13.5px">아래 제출 코드를 복사해 선생님께 전달하세요.</p>
-      <textarea class="codebox" id="codeOut" readonly></textarea>
-      <div class="btnrow"><button class="btn" id="copyCode">제출 완료</button></div>
-    </div>
   </div>
 
 </section>
@@ -459,7 +453,6 @@ input[type=range]{flex:1;accent-color:var(--gold);height:24px}
       <div class="btnrow">
         <button class="btn" id="tRefresh">새로 고침</button>
         <button class="btn" id="tCsv">CSV로 내려받기</button>
-        <button class="btn" id="tImport">제출 코드 넣기</button>
       </div>
       <div class="status info" id="tStatus"></div>
     </div>
@@ -533,6 +526,7 @@ var Store=(function(){
 
   function lsGet(k){try{return window.localStorage.getItem(k);}catch(e){return mem[k]||null;}}
   function lsSet(k,v){try{window.localStorage.setItem(k,v);}catch(e){mem[k]=v;}}
+  function lsDel(k){try{window.localStorage.removeItem(k);}catch(e){delete mem[k];}}
   function lsKeys(){
     var out=[];
     try{
@@ -565,6 +559,23 @@ var Store=(function(){
         return window.storage.set(rec.key,JSON.stringify(rec),true).then(function(){return true;});
       }
       lsSet(rec.key,JSON.stringify(rec));
+      return Promise.resolve(true);
+    },
+    remove:function(key){
+      if(mode==='remote'){
+        return fetch(CONFIG.ENDPOINT,{method:'POST',
+          headers:{'Content-Type':'text/plain;charset=utf-8'},
+          body:JSON.stringify({action:'delete',key:key})})
+          .then(function(r){return r.json();})
+          .then(function(j){
+            if(!j||!j.ok)throw new Error(j&&j.error?j.error:'삭제 실패');
+            return true;
+          });
+      }
+      if(mode==='artifact'){
+        return window.storage.del(key,true).then(function(){return true;});
+      }
+      lsDel(key);
       return Promise.resolve(true);
     },
     load:function(key){
@@ -957,8 +968,8 @@ function analyse(data){
   var avg=ratios.reduce(function(a,b){return a+b;},0)/ratios.length,
       close=expo>1.75&&expo<2.3,html='';
   v.className='verdict '+(close?'good':'warn');
-  html+='<strong>'+(close?'거리의 제곱에 반비례하는 관계가 잘 나타났습니다'
-    :'아직 거리의 제곱에 반비례하는 관계가 잘 보이지 않습니다')+'</strong>';
+  html+='<strong>'+(close?'거리의 제곱에 반비례하는 관계가 잘 나타나고 있습니다'
+    :'현재 거리의 제곱에 반비례하는 관계를 맞춰가는 과정에 있습니다')+'</strong>';
   html+='측정값은 거리의 <span class="mono">'+expo.toFixed(1)+
     '제곱</span>에 반비례하고 있습니다. 이론값은 <span class="mono">2제곱</span>입니다.<ul>';
   data.forEach(function(p){
@@ -969,16 +980,16 @@ function analyse(data){
   html+='</ul>';
   if(!close){
     if(avg>1.15){
-      html+='<p style="margin:10px 0 0">측정값이 예상보다 크게 나왔습니다. 다음을 확인해 보세요.</p><ul>'+
+      html+='<p style="margin:10px 0 0">측정값이 예상보다 크게 나타나고 있어 다음 사항을점검하면 더 정확한 결과를 얻을 수 있습니다.</p><ul>'+
         '<li>거리를 전구 중심이 아니라 스탠드 받침이나 갓에서부터 재지 않았나요</li>'+
         '<li>주변 조명이나 벽·책상에서 반사된 빛이 함께 들어오지 않았나요</li>'+
         '<li>광원에 너무 가까이서 재지는 않았나요</li></ul>';
     }else if(avg<0.85){
-      html+='<p style="margin:10px 0 0">측정값이 예상보다 작게 나왔습니다. 다음을 확인해 보세요.</p><ul>'+
+      html+='<p style="margin:10px 0 0">측정값이 예상보다 작게 나타나고 있어 다음 사항을 점검하면 더 정확한 결과를 얻을 수 있습니다.</p><ul>'+
         '<li>조도 센서가 광원을 똑바로 바라보고 있나요</li>'+
         '<li>손이나 자, 거치대가 센서를 가리지 않았나요</li></ul>';
     }else{
-      html+='<p style="margin:10px 0 0">값이 들쭉날쭉합니다. 같은 자리에서 두세 번 재어 평균을 내 보세요.</p>';
+      html+='<p style="margin:10px 0 0">값이 변화하는 경향을 더 다듬는 중입니다. 같은 자리에서 두세 번 재어 평균을 내 보세요.</p>';
     }
   }
   v.innerHTML=html;
@@ -990,7 +1001,7 @@ function tryLoad(){
   if(!state.cls||!state.grp){
     st.className='status info';st.textContent='반과 모둠을 골라 주세요.';return;
   }
-  st.className='status info';st.textContent='저장된 자료를 확인하는 중입니다…';
+  st.className='status info';st.textContent='저장된 자료를 확인하고 있습니다…';
   Store.load('grp:'+state.cls+'-'+state.grp).then(function(rec){
     var sub=document.getElementById('submitStatus');
     if(rec){
@@ -1000,14 +1011,14 @@ function tryLoad(){
       buildRows(rec.rows);
       writeAnswers(rec.answers);
       st.className='status ok';
-      st.textContent=state.cls+'반 '+state.grp+'모둠의 저장된 자료를 불러왔습니다. 이어서 하면 됩니다.';
+      st.textContent=state.cls+'반 '+state.grp+'모둠의 저장된 자료를 불러옵니다. 이어서 진행하면 됩니다.';
       sub.className='status ok';
-      sub.textContent='이미 제출한 자료가 있습니다. 고쳐서 다시 제출할 수 있습니다.';
+      sub.textContent='제출 완료되었습니다. 내용을 수정하여 언제든 다시 제출할 수 있습니다.';
     }else{
       st.className='status info';
       st.textContent=state.cls+'반 '+state.grp+'모둠 · 새로 시작합니다. ('+Store.label()+')';
       sub.className='status info';
-      sub.textContent='아직 제출하지 않았습니다.';
+      sub.textContent='아직 제출 전 상태입니다.';
     }
   });
 }
@@ -1042,34 +1053,17 @@ document.getElementById('submitBtn').addEventListener('click',function(){
         updated:new Date().toISOString()};
   Store.saveLocalCopy(rec);
   btn.disabled=true;
-  st.className='status info';st.textContent='제출하는 중입니다…';
+  st.className='status info';st.textContent='저장 및 제출 절차를 진행하고 있습니다…';
   Store.save(rec).then(function(){
     btn.disabled=false;
     st.className='status ok';
-    st.textContent='제출했습니다. ('+Store.label()+') 값을 고쳐서 다시 제출해도 됩니다.';
-    if(Store.mode==='local')showCode(rec);
+    st.textContent='제출이 정상적으로 완료되었습니다! ('+Store.label()+') 교사용 대시보드에서 실시간으로 확인 가능합니다.';
+    if(typeof renderTeacher==='function')renderTeacher();
   }).catch(function(err){
     btn.disabled=false;
     st.className='status err';
-    st.textContent='제출하지 못했습니다: '+err.message+' 아래 제출 코드를 복사해 선생님께 전달해 주세요.';
-    showCode(rec);
+    st.textContent='제출을 완료하는 과정에서 오류가 발생하고 있습니다: '+err.message;
   });
-});
-function showCode(rec){
-  document.getElementById('codeArea').hidden=false;
-  var s=JSON.stringify(rec);
-  try{s=btoa(unescape(encodeURIComponent(s)));}catch(e){}
-  document.getElementById('codeOut').value=s;
-}
-document.getElementById('copyCode').addEventListener('click',function(){
-  var ta=document.getElementById('codeOut'),btn=this,old=btn.textContent;
-  ta.select();
-  var done=function(){btn.textContent='복사했습니다';setTimeout(function(){btn.textContent=old;},1600);};
-  if(navigator.clipboard&&navigator.clipboard.writeText){
-    navigator.clipboard.writeText(ta.value).then(done,function(){
-      try{document.execCommand('copy');done();}catch(e){}
-    });
-  }else{try{document.execCommand('copy');done();}catch(e){}}
 });
 
 document.getElementById('savePng').addEventListener('click',function(){
@@ -1086,7 +1080,7 @@ document.getElementById('savePng').addEventListener('click',function(){
     a.download=(state.cls||'')+'반_'+(state.grp||'')+'모둠_그래프.png';
     a.href=c.toDataURL('image/png');a.click();
   };
-  img.onerror=function(){alert('이미지를 만들지 못했습니다. 화면을 캡처해 제출해 주세요.');};
+  img.onerror=function(){alert('이미지를 생성하고 있습니다. 완성이 지연되는 경우 화면을 캡처해 주세요.');};
   img.src='data:image/svg+xml;charset=utf-8,'+
     encodeURIComponent(new XMLSerializer().serializeToString(clone));
 });
@@ -1130,11 +1124,11 @@ function buildTClsChips(){
 }
 function loadAll(){
   var st=document.getElementById('tStatus');
-  st.className='status info';st.textContent='자료를 불러오는 중입니다…';
+  st.className='status info';st.textContent='최신 제출 정보를 불러오고 있습니다…';
   Store.loadAll().then(function(list){
     T.all=list.filter(function(r){return r&&r.key;});
     st.className='status info';
-    st.textContent=T.all.length+'개 모둠의 자료를 불러왔습니다. ('+Store.label()+')';
+    st.textContent=T.all.length+'개 모둠의 제출 정보를 실시간으로 반영하고 있습니다. ('+Store.label()+')';
     renderTeacher();
   }).catch(function(e){
     st.className='status err';st.textContent='불러오지 못했습니다: '+e.message;
@@ -1273,7 +1267,29 @@ function renderDetail(){
     html+='<div class="qa"><p class="qq">'+(i+1)+'. '+esc(item.q.replace(/<[^>]+>/g,''))+'</p>'+
       '<p class="aa'+(a?'':' blank')+'">'+(a?esc(a):'답하지 않음')+'</p></div>';
   });
+
+  html+='<div class="btnrow" style="margin-top:16px">'+
+    '<button class="btn danger" id="deleteGrpBtn">이 모둠 자료 삭제</button>'+
+    '</div>';
+
   box.innerHTML=html;
+
+  document.getElementById('deleteGrpBtn').addEventListener('click',function(){
+    if(!confirm(rec.cls+'반 '+rec.grp+'모둠 자료를 삭제합니다. 계속 진행하시겠습니까?')) return;
+    var st=document.getElementById('tStatus');
+    st.className='status info';
+    st.textContent='자료를 정리하는 중입니다…';
+    Store.remove(rec.key).then(function(){
+      T.all=T.all.filter(function(r){return r.key!==rec.key;});
+      T.sel=null;
+      st.className='status ok';
+      st.textContent=rec.cls+'반 '+rec.grp+'모둠 자료를 깔끔하게 삭제하였습니다.';
+      renderTeacher();
+    }).catch(function(err){
+      st.className='status err';
+      st.textContent='삭제 처리 중 오류가 발생했습니다: '+err.message;
+    });
+  });
 }
 
 document.getElementById('tCsv').addEventListener('click',function(){
@@ -1307,26 +1323,6 @@ document.getElementById('tCsv').addEventListener('click',function(){
   a.download='별의밝기_측정기록.csv';
   a.click();
   setTimeout(function(){URL.revokeObjectURL(a.href);},2000);
-});
-
-document.getElementById('tImport').addEventListener('click',function(){
-  var s=window.prompt('모둠이 전달한 제출 코드를 붙여 넣으세요.');
-  if(!s)return;
-  var st=document.getElementById('tStatus');
-  try{
-    var txt=s.trim(),
-        rec=JSON.parse(txt.charAt(0)==='{'?txt:decodeURIComponent(escape(atob(txt))));
-    if(!rec.key)throw new Error('형식이 맞지 않습니다');
-    Store.saveLocalCopy(rec);
-    T.all=T.all.filter(function(r){return r.key!==rec.key;});
-    T.all.push(rec);
-    st.className='status ok';
-    st.textContent=rec.cls+'반 '+rec.grp+'모둠 자료를 넣었습니다.';
-    renderTeacher();
-  }catch(e){
-    st.className='status err';
-    st.textContent='코드를 읽지 못했습니다. 전체를 빠짐없이 붙여 넣었는지 확인해 주세요.';
-  }
 });
 
 /* ============================================================
@@ -1577,324 +1573,7 @@ document.getElementById('magA').addEventListener('input',updMag);
 document.getElementById('magB').addEventListener('input',updMag);
 updMag();
 
-function drawSpread(){
-  var k=parseInt(document.getElementById('distMul').value,10),
-      svg=document.getElementById('spread');
-  while(svg.childNodes.length>1)svg.removeChild(svg.lastChild);
-
-  var SX=46,FL=372,SIDE=194,FR=FL+SIDE,CY=170,HH=SIDE/2,
-      xr=SX+(FL-SX)/k,          /* 거리 1배 판이 놓이는 자리 */
-      nSide=SIDE/k, nHH=HH/k;
-
-  /* 빛다발 */
-  svg.appendChild(el('polygon',{
-    points:SX+','+CY+' '+FL+','+(CY-HH)+' '+FL+','+(CY+HH),
-    fill:'#FFC857',opacity:'.05'}));
-  [CY-HH,CY+HH].forEach(function(y){
-    svg.appendChild(el('line',{x1:SX,y1:CY,x2:FL,y2:y,
-      stroke:'#FFC857','stroke-width':1.2,opacity:'.35'}));
-  });
-
-  /* 먼 판 — k×k 칸으로 나뉩니다 */
-  var cell=SIDE/k, op=Math.max(0.10,1/(k*k));
-  for(var i=0;i<k;i++){
-    for(var j=0;j<k;j++){
-      svg.appendChild(el('rect',{x:FL+i*cell,y:CY-HH+j*cell,width:cell,height:cell,
-        fill:'#FFD979',opacity:String(op),
-        stroke:'#FFC857','stroke-width':k>6?0.8:1.3,'stroke-opacity':k>6?'.5':'.75'}));
-    }
-  }
-
-  /* 가까운 판 — 언제나 한 칸 */
-  if(k>1){
-    svg.appendChild(el('rect',{x:xr,y:CY-nHH,width:nSide,height:nSide,
-      fill:'#FFE9A8',opacity:'.95',stroke:'#FFF6D8','stroke-width':1.4}));
-  }
-
-  /* 광원 */
-  svg.appendChild(el('circle',{cx:SX,cy:CY,r:15,fill:'#FFC857',opacity:'.18'}));
-  svg.appendChild(el('circle',{cx:SX,cy:CY,r:7,fill:'#FFE9A8'}));
-  svg.appendChild(el('text',{x:SX,y:CY+33,'text-anchor':'middle',fill:'#98A2C8',
-    'font-size':'11.5','font-family':'Noto Sans KR, sans-serif'},'광원'));
-
-  function tag(x,y,l1,l2,anchor){
-    svg.appendChild(el('text',{x:x,y:y,'text-anchor':anchor||'middle',fill:'#FFC857',
-      'font-size':'12.5','font-family':'Noto Sans KR, sans-serif','font-weight':'700'},l1));
-    svg.appendChild(el('text',{x:x,y:y+17,'text-anchor':anchor||'middle',fill:'#B9C2E4',
-      'font-size':'11.5','font-family':'Noto Sans KR, sans-serif'},l2));
-  }
-  if(k>1)tag(xr+nSide/2, CY-nHH-32, '거리 1배', '한 칸 · 밝기 1');
-  tag(FL+SIDE/2, CY-HH-32, '거리 '+k+'배',
-      k===1?'한 칸 · 밝기 1':(k*k)+'칸 · 밝기 1/'+(k*k));
-
-  /* 아래 거리 눈금 */
-  var BY=306;
-  svg.appendChild(el('line',{x1:SX,y1:BY,x2:FL,y2:BY,
-    stroke:'rgba(255,255,255,.22)','stroke-width':1}));
-  function mark(x,txt){
-    svg.appendChild(el('line',{x1:x,y1:BY-5,x2:x,y2:BY+5,
-      stroke:'rgba(255,255,255,.35)','stroke-width':1.5}));
-    if(txt)svg.appendChild(el('text',{x:x,y:BY+22,'text-anchor':'middle',fill:'#98A2C8',
-      'font-size':'11.5','font-family':'IBM Plex Mono, monospace'},txt));
-  }
-  mark(SX,null);
-  if(k>1)mark(xr,'1배');
-  mark(FL,k+'배');
-
-  /* 숫자 요약 */
-  var dm=5*Math.log(k)/Math.LN10;
-  document.getElementById('distOut').textContent=k+'배';
-  document.getElementById('sArea').textContent=k===1?'그대로':(k*k)+'배';
-  document.getElementById('sBright').textContent=k===1?'그대로':'1/'+(k*k)+'배';
-  document.getElementById('sMag').textContent=k===1?'그대로':'+'+dm.toFixed(1)+'등급';
-}
-document.getElementById('distMul').addEventListener('input',drawSpread);
-drawSpread();
-
-/* ============================================================
-   PANEL 3 — 확인 문제
-   ============================================================ */
-var QUIZ=[
-  {q:'광원으로부터의 거리가 3배 멀어지면 빛의 세기는 어떻게 될까요?',
-   o:['1/3배','1/6배','1/9배','1/12배'],a:2,
-   w:'빛은 거리의 제곱에 반비례합니다. 거리가 3배가 되면 같은 양의 빛이 3×3=9배 넓은 면에 퍼지므로 1/9배가 됩니다.'},
-  {q:'1등급인 별은 6등급인 별보다 약 몇 배 밝을까요?',
-   o:['약 2.5배','약 25배','약 50배','약 100배'],a:3,
-   w:'등급이 1 차이 날 때마다 밝기는 약 2.5배씩 달라집니다. 5등급 차이는 2.5를 다섯 번 곱한 것이므로 정확히 100배가 됩니다.'},
-  {q:'겉보기 등급에 대한 설명으로 옳은 것은 무엇일까요?',
-   o:['등급이 클수록 밝게 보인다','등급이 작을수록 밝게 보인다',
-      '거리와 상관없이 실제 밝기를 나타낸다','음수 등급은 존재하지 않는다'],a:1,
-   w:'등급은 작을수록 밝습니다. 태양의 겉보기 등급은 -26.8로 가장 작고, 가장 밝게 보입니다.'},
-  {q:'절대 등급은 별이 얼마나 떨어져 있다고 가정했을 때의 밝기일까요?',
-   o:['1 pc','10 pc','100 pc','1000 pc'],a:1,
-   w:'모든 별을 10 pc라는 같은 거리에 옮겨 놓았다고 가정하고 정한 등급이 절대 등급입니다. 거리의 영향을 없애서 실제 밝기를 비교할 수 있습니다.'},
-  {q:'태양의 겉보기 등급이 -26.8로 가장 작은 까닭은 무엇일까요?',
-   o:['우주에서 실제로 가장 밝은 별이기 때문','지구에서 가장 가까운 별이기 때문',
-      '표면 온도가 가장 높기 때문','가장 큰 별이기 때문'],a:1,
-   w:'태양의 절대 등급은 4.8로 별들 사이에서는 평범한 편입니다. 겉보기 등급이 압도적으로 작은 것은 다른 별들보다 훨씬 가까이 있기 때문입니다.'},
-  {q:'데네브는 겉보기 등급 1.3, 절대 등급 -7.2입니다. 시리우스는 겉보기 등급 -1.5, 절대 등급 1.4입니다. 실제로 더 밝은 별은 어느 쪽일까요?',
-   o:['시리우스. 겉보기 등급이 더 작으니까','데네브. 절대 등급이 더 작으니까',
-      '둘의 실제 밝기는 같다','주어진 값만으로는 알 수 없다'],a:1,
-   w:'실제 밝기를 비교할 때는 절대 등급을 봅니다. 데네브의 절대 등급 -7.2가 시리우스의 1.4보다 훨씬 작으므로 데네브가 실제로 더 밝습니다. 시리우스가 더 밝게 보이는 것은 훨씬 가까이 있기 때문입니다.',
-   adv:true}
-];
-(function(){
-  var box=document.getElementById('quiz'),answered=0,correct=0;
-  QUIZ.forEach(function(item,i){
-    var d=document.createElement('div');
-    d.className='q';
-    d.innerHTML='<p class="qnum">문제 '+(i+1)+(item.adv?'<span class="badge">심화</span>':'')+
-      '</p><p class="qtext">'+item.q+'</p><div class="opts">'+
-      item.o.map(function(t,k){return '<button data-k="'+k+'">'+t+'</button>';}).join('')+'</div>';
-    var wrap=d.querySelector('.opts');
-    wrap.addEventListener('click',function(e){
-      var btn=e.target.closest('button');
-      if(!btn||wrap.getAttribute('data-done'))return;
-      wrap.setAttribute('data-done','1');
-      var k=parseInt(btn.getAttribute('data-k'),10),ok=k===item.a;
-      Array.prototype.forEach.call(wrap.children,function(b,idx){
-        b.disabled=true;
-        if(idx===item.a)b.classList.add('right');
-        else if(idx===k)b.classList.add('wrong');
-      });
-      var why=document.createElement('p');
-      why.className='why';
-      why.textContent=(ok?'맞았습니다. ':'')+item.w;
-      d.appendChild(why);
-      answered++;if(ok)correct++;
-      if(answered===QUIZ.length){
-        document.getElementById('scoreBox').innerHTML='<div class="score"><span class="big">'+
-          correct+' / '+QUIZ.length+'</span>'+
-          (correct===QUIZ.length?'전부 맞혔습니다.'
-           :correct>=QUIZ.length-2?'거의 다 이해했습니다.'
-           :'틀린 문제의 설명을 한 번 더 읽어 보세요.')+'</div>';
-      }
-    });
-    box.appendChild(d);
-  });
-})();
-
-/* 시작 점검 — 화면이 제대로 만들어졌는지 확인합니다. */
-(function(){
-  var ok = document.getElementById('clsChips').children.length > 0 &&
-           document.getElementById('rows').children.length > 0 &&
-           document.getElementById('quiz').children.length > 0;
-  if(!ok && window.__stellarError){
-    window.__stellarError('화면을 다 만들지 못했습니다. 브라우저를 새로 고침(Ctrl+F5)해 주세요.');
-  }
-})();
-
 })();
 </script>
-
-<script>
-/* 챗과장 수정: 교사용 제출자료 삭제 기능 */
-(function () {
-  function getSubmissionStore() {
-    const keys = ['submissions', 'studentSubmissions', 'submittedData', 'teamSubmissions'];
-    for (const k of keys) {
-      try {
-        const raw = localStorage.getItem(k);
-        if (raw !== null) return {key:k, raw:raw};
-      } catch(e) {}
-    }
-    return null;
-  }
-
-  window.deleteSubmissionByKey = function(key, index) {
-    if (!key) return false;
-    if (!confirm('이 제출 자료를 삭제할까요?\\n삭제하면 되돌릴 수 없습니다.')) return false;
-    try {
-      const data = JSON.parse(localStorage.getItem(key) || '[]');
-      if (Array.isArray(data)) {
-        data.splice(index, 1);
-        localStorage.setItem(key, JSON.stringify(data));
-      } else if (data && typeof data === 'object') {
-        const keys = Object.keys(data);
-        if (keys[index] !== undefined) {
-          delete data[keys[index]];
-          localStorage.setItem(key, JSON.stringify(data));
-        }
-      }
-      location.reload();
-      return true;
-    } catch(e) {
-      alert('삭제하지 못했습니다.');
-      return false;
-    }
-  };
-
-  window.deleteSubmissionObject = function(key, id) {
-    if (!key || id == null) return false;
-    if (!confirm('이 제출 자료를 삭제할까요?\\n삭제하면 되돌릴 수 없습니다.')) return false;
-    try {
-      const data = JSON.parse(localStorage.getItem(key) || '[]');
-      if (Array.isArray(data)) {
-        const next = data.filter(x => String(x?.id ?? x?.submissionId ?? x?.code ?? '') !== String(id));
-        localStorage.setItem(key, JSON.stringify(next));
-      } else {
-        delete data[id];
-        localStorage.setItem(key, JSON.stringify(data));
-      }
-      location.reload();
-      return true;
-    } catch(e) {
-      alert('삭제하지 못했습니다.');
-      return false;
-    }
-  };
-})();
-</script>
-
-
-<script>
-/* 교사용 대시보드의 제출 목록에 삭제 버튼을 추가하는 보조 UI */
-(function () {
-  function isTeacherView() {
-    return /교사|대시보드|teacher/i.test(document.body?.innerText || '') &&
-           /제출/.test(document.body?.innerText || '');
-  }
-  function addDeleteButtons() {
-    if (!isTeacherView()) return;
-    const store = getSubmissionStoreSafe();
-    if (!store) return;
-    const nodes = Array.from(document.querySelectorAll('tr, li, .card, .submission, .submission-item, .result, .item'));
-    nodes.forEach((node, idx) => {
-      if (node.dataset.deleteAdded === '1') return;
-      const t = node.innerText || '';
-      if (!/제출|학생|모둠/.test(t)) return;
-      const btn = document.createElement('button');
-      btn.type = 'button';
-      btn.textContent = '삭제';
-      btn.style.marginLeft = '8px';
-      btn.style.padding = '4px 8px';
-      btn.style.cursor = 'pointer';
-      btn.addEventListener('click', () => {
-        window.deleteSubmissionByKey(store.key, idx);
-      });
-      node.appendChild(btn);
-      node.dataset.deleteAdded = '1';
-    });
-  }
-  function getSubmissionStoreSafe() {
-    try {
-      const keys = ['submissions', 'studentSubmissions', 'submittedData', 'teamSubmissions'];
-      for (const k of keys) {
-        if (localStorage.getItem(k) !== null) return {key:k};
-      }
-    } catch(e) {}
-    return null;
-  }
-  setInterval(addDeleteButtons, 1000);
-})();
-</script>
-
-
-<script>
-/* 실시간 제출 동기화 보강
-   - 같은 브라우저의 여러 탭에서는 즉시 동기화
-   - 제출 목록 변경 시 교사 대시보드 자동 새로고침
-   - 학생 제출은 제출코드 전달 없이 저장
-*/
-(function () {
-  const SYNC_KEY = 'star_brightness_realtime_sync_v1';
-
-  window.notifySubmissionChange = function () {
-    try {
-      localStorage.setItem(SYNC_KEY, String(Date.now()));
-    } catch (e) {}
-  };
-
-  window.addEventListener('storage', function (e) {
-    if (e.key === SYNC_KEY) {
-      // 교사 대시보드가 열려 있다면 최신 저장자료를 즉시 다시 그리도록 한다.
-      // 기존 페이지의 렌더링 함수가 있으면 호출한다.
-      ['renderSubmissions','renderDashboard','loadSubmissions','refreshDashboard',
-       'renderTeacherDashboard','refreshSubmissions'].forEach(function (fn) {
-        if (typeof window[fn] === 'function') {
-          try { window[fn](); } catch (err) {}
-        }
-      });
-    }
-  });
-
-  // 페이지 내 다른 코드가 localStorage에 제출자료를 저장한 뒤에도
-  // 다음 프레임에서 동기화 신호를 보낼 수 있도록 주기적으로 감지한다.
-  let lastSnapshot = '';
-  setInterval(function () {
-    try {
-      const keys = ['submissions','studentSubmissions','submittedData','teamSubmissions'];
-      const snapshot = keys.map(k => localStorage.getItem(k) || '').join('\\n');
-      if (snapshot !== lastSnapshot) {
-        lastSnapshot = snapshot;
-        notifySubmissionChange();
-      }
-    } catch (e) {}
-  }, 700);
-})();
-</script>
-
-
-<div id="realtime-status" style="display:none;position:fixed;right:16px;bottom:16px;z-index:9999;
-background:#fff;border:1px solid #ddd;border-radius:10px;padding:10px 14px;
-box-shadow:0 3px 12px rgba(0,0,0,.12);font-size:14px;">
-  제출 자료 자동 갱신 준비됨
-</div>
-<script>
-(function(){
-  function showTeacherSyncNotice(){
-    const body = document.body ? document.body.innerText : '';
-    if (!/교사|대시보드/.test(body)) return;
-    const el = document.getElementById('realtime-status');
-    if (!el) return;
-    el.style.display='block';
-    setTimeout(()=>el.style.display='none', 1800);
-  }
-  window.addEventListener('storage', function(e){
-    if(e.key==='star_brightness_realtime_sync_v1') showTeacherSyncNotice();
-  });
-})();
-</script>
-
 </body>
 </html>
